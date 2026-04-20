@@ -1,0 +1,341 @@
+{% extends "base.html" %}
+{% block title %}SpamSentinel — Result{% endblock %}
+
+{% block extra_style %}
+<style>
+  .result-hero {
+    text-align: center;
+    padding: 2.5rem 0 2rem;
+  }
+  .verdict-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem 2.5rem;
+    border-radius: 50px;
+    font-family: var(--mono);
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    margin-bottom: 1rem;
+  }
+  .verdict-spam {
+    background: rgba(239,68,68,0.15);
+    border: 2px solid rgba(239,68,68,0.5);
+    color: var(--red);
+    box-shadow: 0 0 40px rgba(239,68,68,0.15);
+  }
+  .verdict-ham {
+    background: rgba(34,197,94,0.15);
+    border: 2px solid rgba(34,197,94,0.5);
+    color: var(--green);
+    box-shadow: 0 0 40px rgba(34,197,94,0.15);
+  }
+
+  .confidence-ring {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .conf-num {
+    font-family: var(--mono);
+    font-size: 2.5rem;
+    font-weight: 700;
+  }
+  .conf-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; }
+
+  .result-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+
+  .prob-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+  }
+  .prob-label { font-size: 0.85rem; width: 50px; flex-shrink: 0; }
+  .prob-bar-wrap { flex: 1; }
+  .prob-num {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--muted);
+    width: 45px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .url-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+    margin-bottom: 0.6rem;
+  }
+  .url-item .url-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .url-text {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--muted);
+    word-break: break-all;
+    flex: 1;
+  }
+  .url-reasons {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border);
+  }
+  .reason-item {
+    font-size: 0.78rem;
+    color: var(--muted);
+    padding: 0.2rem 0;
+  }
+  .reason-item::before { content: "→ "; color: var(--accent2); }
+
+  .trust-card {
+    padding: 1.25rem;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    margin-top: 1.5rem;
+  }
+
+  .score-display {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin: 0.75rem 0;
+  }
+  .score-num {
+    font-family: var(--mono);
+    font-size: 3rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .score-details { flex: 1; }
+
+  .new-alert {
+    background: rgba(239,68,68,0.1);
+    border: 1px solid rgba(239,68,68,0.35);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin-top: 1.5rem;
+    animation: pulse 2s infinite;
+  }
+  .new-alert.auto-verified {
+    background: rgba(34,197,94,0.1);
+    border-color: rgba(34,197,94,0.35);
+    animation: none;
+  }
+  .new-alert h3 { font-size: 0.9rem; margin-bottom: 0.4rem; }
+  .new-alert p  { font-size: 0.85rem; color: var(--muted); }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.3); }
+    50%       { box-shadow: 0 0 0 8px rgba(239,68,68,0); }
+  }
+
+  .action-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    flex-wrap: wrap;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  <!-- Verdict Hero -->
+  <div class="result-hero">
+    <div class="verdict-badge verdict-{{ prediction.label }}">
+      {% if prediction.label == 'spam' %}🚫{% else %}✅{% endif %}
+      {{ prediction.label.upper() }}
+    </div>
+    <div style="color:var(--muted);font-size:0.9rem;margin-bottom:0.5rem;">
+      {% if sender %}<strong style="color:var(--text)">{{ sender }}</strong>{% else %}Unknown sender{% endif %}
+      {% if subject %}· "{{ subject[:50] }}{% if subject|length > 50 %}…{% endif %}"{% endif %}
+    </div>
+    <div class="confidence-ring">
+      <span class="conf-num"
+            style="color:{% if prediction.label=='spam' %}var(--red){% else %}var(--green){% endif %}">
+        {{ (prediction.confidence * 100)|int }}%
+      </span>
+      <span class="conf-label">Confidence</span>
+    </div>
+  </div>
+
+  <!-- New alert from this analysis -->
+  {% if alert %}
+  <div class="new-alert {% if alert.alert_type == 'AUTO_VERIFIED' %}auto-verified{% endif %}">
+    <h3>{% if alert.alert_type == 'AUTO_VERIFIED' %}✅ Sender Auto-Verified{% else %}⚠️ Spammer Alert Triggered{% endif %}</h3>
+    <p>{{ alert.message }}</p>
+    {% if alert.alert_type == 'SPAMMER_DETECTED' %}
+    <div class="action-row">
+      <form action="/sender/action" method="POST" style="display:inline">
+        <input type="hidden" name="email" value="{{ sender }}">
+        <input type="hidden" name="action" value="block">
+        <button type="submit" class="btn btn-danger btn-sm">🚫 Block Sender</button>
+      </form>
+      <form action="/sender/action" method="POST" style="display:inline">
+        <input type="hidden" name="email" value="{{ sender }}">
+        <input type="hidden" name="action" value="reset">
+        <button type="submit" class="btn btn-ghost btn-sm">↺ Reset Score</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="result-layout mt-3">
+
+    <!-- Left: Prediction details + Trust -->
+    <div>
+      <div class="card">
+        <div class="card-title">Prediction Breakdown</div>
+
+        <div class="prob-row">
+          <span class="prob-label" style="color:var(--red)">Spam</span>
+          <div class="prob-bar-wrap">
+            <div class="progress-bar">
+              <div class="progress-fill"
+                   style="width:{{ (prediction.spam_prob*100)|int }}%;
+                          background:var(--red)"></div>
+            </div>
+          </div>
+          <span class="prob-num">{{ (prediction.spam_prob*100)|int }}%</span>
+        </div>
+
+        <div class="prob-row">
+          <span class="prob-label" style="color:var(--green)">Ham</span>
+          <div class="prob-bar-wrap">
+            <div class="progress-bar">
+              <div class="progress-fill"
+                   style="width:{{ (prediction.ham_prob*100)|int }}%;
+                          background:var(--green)"></div>
+            </div>
+          </div>
+          <span class="prob-num">{{ (prediction.ham_prob*100)|int }}%</span>
+        </div>
+      </div>
+
+      <!-- Trust Score -->
+      {% if trust_info %}
+      <div class="trust-card" style="background:var(--surface);">
+        <div class="card-title">Sender Trust Score Updated</div>
+        <div class="score-display">
+          <span class="score-num" style="color:{{ trust_info.color }}">
+            {{ trust_info.trust_score|int }}
+          </span>
+          <div class="score-details">
+            <span class="badge" style="background:{{ trust_info.color }}22;
+                                       color:{{ trust_info.color }};
+                                       border:1px solid {{ trust_info.color }}44;
+                                       font-size:0.85rem;padding:0.3rem 0.8rem;">
+              {{ trust_info.icon }} {{ trust_info.category }}
+            </span>
+            <div style="font-size:0.8rem;color:var(--muted);margin-top:0.4rem;">
+              {{ sender }}
+            </div>
+          </div>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill"
+               style="width:{{ trust_info.trust_score|int }}%;
+                      background:{{ trust_info.color }}"></div>
+        </div>
+
+        <div class="action-row">
+          <form action="/sender/action" method="POST" style="display:inline">
+            <input type="hidden" name="email" value="{{ sender }}">
+            <input type="hidden" name="action" value="trust">
+            <button type="submit" class="btn btn-success btn-sm">✅ Mark Trusted</button>
+          </form>
+          <form action="/sender/action" method="POST" style="display:inline">
+            <input type="hidden" name="email" value="{{ sender }}">
+            <input type="hidden" name="action" value="block">
+            <button type="submit" class="btn btn-danger btn-sm">🚫 Block</button>
+          </form>
+          <form action="/sender/action" method="POST" style="display:inline">
+            <input type="hidden" name="email" value="{{ sender }}">
+            <input type="hidden" name="action" value="reset">
+            <button type="submit" class="btn btn-ghost btn-sm">↺ Reset</button>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+
+    <!-- Right: URL Analysis -->
+    <div>
+      <div class="card">
+        <div class="card-title">
+          URL Threat Analysis
+          {% if url_summary.total > 0 %}
+          <span style="color:var(--muted);font-weight:400;">
+            — {{ url_summary.total }} URL(s) found
+          </span>
+          {% endif %}
+        </div>
+
+        {% if url_summary.total == 0 %}
+        <p style="color:var(--muted);font-size:0.875rem;">No URLs detected in this email.</p>
+
+        {% else %}
+        <!-- Summary row -->
+        <div style="display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap;">
+          {% if url_summary.dangerous > 0 %}
+          <span class="badge badge-danger">🔴 {{ url_summary.dangerous }} Dangerous</span>
+          {% endif %}
+          {% if url_summary.suspicious > 0 %}
+          <span class="badge badge-warn">🟠 {{ url_summary.suspicious }} Suspicious</span>
+          {% endif %}
+          {% if url_summary.safe > 0 %}
+          <span class="badge badge-safe">🟢 {{ url_summary.safe }} Safe</span>
+          {% endif %}
+        </div>
+
+        {% for url in url_results %}
+        <div class="url-item">
+          <div class="url-top">
+            <span class="url-text">{{ url.url }}</span>
+            <span class="badge"
+                  style="background:{{ url.color }}22;
+                         color:{{ url.color }};
+                         border:1px solid {{ url.color }}44;
+                         flex-shrink:0;">
+              {{ url.icon }} {{ url.threat_level }}
+            </span>
+          </div>
+          {% if url.reasons %}
+          <div class="url-reasons">
+            {% for reason in url.reasons %}
+            <div class="reason-item">{{ reason }}</div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+        {% endif %}
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Back button -->
+  <div style="margin-top:2rem;display:flex;gap:1rem;">
+    <a href="/" class="btn btn-primary">← Analyze Another</a>
+    <a href="/dashboard" class="btn btn-ghost">View Dashboard</a>
+  </div>
+
+</div>
+{% endblock %}
